@@ -436,12 +436,6 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
             </a>
           </div>
 
-          {/* Curved Hand-Drawn Doodle Arrow */}
-          <div className="hero-doodle-arrow-wrap">
-            <svg width="50" height="40" viewBox="0 0 50 40" fill="none" stroke="rgba(255, 255, 255, 0.4)" strokeWidth="1.8" strokeLinecap="round">
-              <path d="M5 5 C 20 2, 40 10, 42 28 M 34 24 L 42 28 L 44 20" />
-            </svg>
-          </div>
 
           {/* Technologies I Work With */}
           <div className="hero-tech-strip">
