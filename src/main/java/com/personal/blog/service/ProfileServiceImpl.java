@@ -57,6 +57,10 @@ public class ProfileServiceImpl implements ProfileService {
         if (request.getLinkedinUrl() != null) profile.setLinkedinUrl(request.getLinkedinUrl());
         if (request.getEmail() != null) profile.setEmail(request.getEmail());
         if (request.getHighlightsJson() != null) profile.setHighlightsJson(request.getHighlightsJson());
+        if (request.getCvUrl() != null) profile.setCvUrl(request.getCvUrl());
+        if (request.getPhone() != null) profile.setPhone(request.getPhone());
+        if (request.getSkillsJson() != null) profile.setSkillsJson(request.getSkillsJson());
+        if (request.getTestimonialJson() != null) profile.setTestimonialJson(request.getTestimonialJson());
 
         Profile saved = profileRepository.save(profile);
         return mapToDto(saved);
@@ -93,6 +97,10 @@ public class ProfileServiceImpl implements ProfileService {
                 .githubUrl("https://github.com/rakandp")
                 .linkedinUrl("https://linkedin.com")
                 .email("rakandp.dev@gmail.com")
+                .cvUrl("#")
+                .phone("+62 812-3456-7890")
+                .skillsJson("[{\"name\":\"HTML & Semantics\",\"percent\":95,\"icon\":\"html\",\"category\":\"frontend\"},{\"name\":\"CSS3 & Modern Layout\",\"percent\":90,\"icon\":\"css\",\"category\":\"frontend\"},{\"name\":\"JavaScript (ESNext)\",\"percent\":90,\"icon\":\"js\",\"category\":\"frontend\"},{\"name\":\"React.js 19\",\"percent\":88,\"icon\":\"react\",\"category\":\"frontend\"},{\"name\":\"Next.js & SSR\",\"percent\":82,\"icon\":\"next\",\"category\":\"frontend\"},{\"name\":\"TypeScript\",\"percent\":85,\"icon\":\"ts\",\"category\":\"frontend\"},{\"name\":\"Java 21 & Spring Boot 4\",\"percent\":95,\"icon\":\"java\",\"category\":\"backend\"},{\"name\":\"PostgreSQL & Query Tuning\",\"percent\":90,\"icon\":\"postgres\",\"category\":\"backend\"},{\"name\":\"Git & CI/CD Pipelines\",\"percent\":85,\"icon\":\"git\",\"category\":\"devops\"}]")
+                .testimonialJson("{\"quote\":\"Raka adalah Software Engineer luar biasa yang mampu merancang arsitektur backend berdaya tahan tinggi dan pengalaman antarmuka modern dengan perhatian detail istimewa.\",\"author\":\"Sarah Johnson\",\"role\":\"VP of Engineering, Tech Innovation Lab\",\"avatarUrl\":\"https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80\"}")
                 .internalNotes("Admin internal profile notes - confidential")
                 .highlightsJson("[{\"id\":1,\"icon\":\"⚡\",\"title\":\"Backend Architecture & Scalability\",\"desc\":\"Arsitektur Java 21, Spring Boot 4, microservices, dan performa RESTful APIs.\"},{\"id\":2,\"icon\":\"🗄️\",\"title\":\"Database & Concurrency Tuning\",\"desc\":\"Optimasi query PostgreSQL, pooling koneksi HikariCP, & konsistensi data tinggi.\"},{\"id\":3,\"icon\":\"🔬\",\"title\":\"Riset Teknologi & Analisis\",\"desc\":\"Eksplorasi benchmarking performa sistem, rekayasa software, dan publikasi riset terstruktur.\"},{\"id\":4,\"icon\":\"🛡️\",\"title\":\"Reliabilitas & Clean Code\",\"desc\":\"Komitmen pada standar uptime 99.9%, fault tolerance, dan maintainability jangka panjang.\"}]")
                 .build();
@@ -116,6 +124,10 @@ public class ProfileServiceImpl implements ProfileService {
                 .linkedinUrl(profile.getLinkedinUrl())
                 .email(profile.getEmail())
                 .highlightsJson(profile.getHighlightsJson())
+                .cvUrl(profile.getCvUrl())
+                .phone(profile.getPhone())
+                .skillsJson(profile.getSkillsJson())
+                .testimonialJson(profile.getTestimonialJson())
                 .build();
     }
 }

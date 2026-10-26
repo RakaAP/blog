@@ -59,6 +59,18 @@ public class Profile implements Serializable {
     @Column(columnDefinition = "TEXT")
     private String highlightsJson;
 
+    @Column(length = 500)
+    private String cvUrl;
+
+    @Column(length = 50)
+    private String phone;
+
+    @Column(columnDefinition = "TEXT")
+    private String skillsJson;
+
+    @Column(columnDefinition = "TEXT")
+    private String testimonialJson;
+
     // Sensitive / internal field that should NEVER be exposed in public DTO
     @Column(columnDefinition = "TEXT")
     private String internalNotes;

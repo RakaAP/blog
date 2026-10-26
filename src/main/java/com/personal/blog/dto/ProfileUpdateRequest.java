@@ -24,4 +24,8 @@ public class ProfileUpdateRequest {
     private String linkedinUrl;
     private String email;
     private String highlightsJson;
+    private String cvUrl;
+    private String phone;
+    private String skillsJson;
+    private String testimonialJson;
 }

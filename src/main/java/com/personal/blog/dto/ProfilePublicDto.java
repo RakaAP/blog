@@ -28,4 +28,8 @@ public class ProfilePublicDto implements Serializable {
     private String linkedinUrl;
     private String email;
     private String highlightsJson;
+    private String cvUrl;
+    private String phone;
+    private String skillsJson;
+    private String testimonialJson;
 }
