@@ -2,6 +2,8 @@ package com.personal.blog.controller;
 
 import com.personal.blog.dto.ProfilePublicDto;
 import com.personal.blog.dto.ProfileUpdateRequest;
+import com.personal.blog.dto.SkillDto;
+import com.personal.blog.dto.TestimonialDto;
 import com.personal.blog.service.ProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,7 +31,7 @@ public class ProfileController {
 
     /**
      * 1. Endpoint Publik: Mengambil data profil publik tanpa otentikasi.
-     * Menggunakan strategi caching @Cacheable pada service layer untuk performa tinggi.
+     * Mengembalikan profil lengkap dengan nested skills dan testimonials.
      */
     @GetMapping
     @Operation(summary = "Ambil profil publik penulis", description = "Dapat diakses secara publik tanpa token autentikasi. Data sensitif tidak diekspos.")
@@ -40,7 +42,7 @@ public class ProfileController {
 
     /**
      * 2. Endpoint Terproteksi: Memperbarui data profil penulis.
-     * Hanya dapat diakses oleh pengguna dengan role ADMIN (@PreAuthorize).
+     * Dapat memperbarui parameter dasar dan sinkronisasi nested skills/testimonials.
      */
     @PutMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -53,7 +55,6 @@ public class ProfileController {
 
     /**
      * 3. Endpoint Terproteksi: Mengunggah berkas avatar / foto profil baru.
-     * Wajib diproteksi role ADMIN, dilengkapi validasi tipe MIME dan batas ukuran berkas.
      */
     @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('ADMIN')")
@@ -82,5 +83,89 @@ public class ProfileController {
             error.put("message", "Gagal menyimpan berkas di server.");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
+    }
+
+    /**
+     * 4. Endpoint Publik: Streaming gambar avatar langsung dari database PostgreSQL.
+     */
+    @GetMapping(value = "/avatar/image")
+    @Operation(summary = "Streaming gambar avatar dari database", description = "Endpoint publik untuk mengambil data biner foto profil dari PostgreSQL.")
+    public ResponseEntity<byte[]> getAvatarImage() {
+        com.personal.blog.dto.AvatarImageDto imageDto = profileService.getAvatarImage();
+        if (imageDto == null || imageDto.getData() == null || imageDto.getData().length == 0) {
+            // Fallback redirect ke default /author.jpg jika belum ada avatar biner tersimpan di DB
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(java.net.URI.create("/author.jpg"))
+                    .build();
+        }
+
+        MediaType mediaType;
+        try {
+            mediaType = MediaType.parseMediaType(imageDto.getContentType());
+        } catch (Exception e) {
+            mediaType = MediaType.IMAGE_JPEG;
+        }
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .cacheControl(org.springframework.http.CacheControl.maxAge(1, java.util.concurrent.TimeUnit.DAYS).cachePublic().mustRevalidate())
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .body(imageDto.getData());
+    }
+
+    // =========================================================================
+    // SKILLS CRUD ENDPOINTS (Role ADMIN)
+    // =========================================================================
+
+    @PostMapping("/skills")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Tambah keahlian baru (Role ADMIN)", description = "Menambahkan skill baru ke tabel skills.")
+    public ResponseEntity<SkillDto> addSkill(@RequestBody SkillDto skillDto) {
+        SkillDto created = profileService.addSkill(skillDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PutMapping("/skills/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Perbarui data keahlian (Role ADMIN)", description = "Memperbarui nama, icon, proficiency, atau display order skill.")
+    public ResponseEntity<SkillDto> updateSkill(@PathVariable("id") Long id, @RequestBody SkillDto skillDto) {
+        SkillDto updated = profileService.updateSkill(id, skillDto);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/skills/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Hapus keahlian (Role ADMIN)", description = "Menghapus skill berdasarkan ID.")
+    public ResponseEntity<Map<String, String>> deleteSkill(@PathVariable("id") Long id) {
+        profileService.deleteSkill(id);
+        return ResponseEntity.ok(Map.of("message", "Skill berhasil dihapus", "status", "SUCCESS"));
+    }
+
+    // =========================================================================
+    // TESTIMONIALS CRUD ENDPOINTS (Role ADMIN)
+    // =========================================================================
+
+    @PostMapping("/testimonials")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Tambah testimoni baru (Role ADMIN)", description = "Menambahkan testimoni baru ke tabel testimonials.")
+    public ResponseEntity<TestimonialDto> addTestimonial(@RequestBody TestimonialDto testimonialDto) {
+        TestimonialDto created = profileService.addTestimonial(testimonialDto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PutMapping("/testimonials/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Perbarui data testimoni (Role ADMIN)", description = "Memperbarui quote, author, role, atau avatarUrl testimoni.")
+    public ResponseEntity<TestimonialDto> updateTestimonial(@PathVariable("id") Long id, @RequestBody TestimonialDto testimonialDto) {
+        TestimonialDto updated = profileService.updateTestimonial(id, testimonialDto);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/testimonials/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Hapus testimoni (Role ADMIN)", description = "Menghapus testimoni berdasarkan ID.")
+    public ResponseEntity<Map<String, String>> deleteTestimonial(@PathVariable("id") Long id) {
+        profileService.deleteTestimonial(id);
+        return ResponseEntity.ok(Map.of("message", "Testimoni berhasil dihapus", "status", "SUCCESS"));
     }
 }

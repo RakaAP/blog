@@ -45,3 +45,6 @@ Thumbs.db
 ### Backups Archive ###
 backups/archive/*.tar.gz
 
+### Uploads / User Files ###
+uploads/
+

@@ -1,21 +1,48 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Navbar({ activeTab, setActiveTab, systemOnline, siteSettings, onOpenAdminLogin }) {
+export default function Navbar({
+  activeTab,
+  setActiveTab,
+  activeSection,
+  onSectionNavigate,
+  systemOnline,
+  siteSettings,
+  onOpenAdminLogin,
+}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isAuthenticated, logout } = useAuth();
 
-  const handleNav = (tab) => {
-    setActiveTab(tab);
+  const handleSectionOrTab = (sectionId, tabName) => {
     setMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // If navigating to an independent tab (like blog, research, career, admin)
+    if (tabName && tabName !== 'about') {
+      setActiveTab(tabName);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    // If currently not on the portfolio/about tab, switch to it first then scroll
+    if (activeTab !== 'about') {
+      setActiveTab('about');
+      setTimeout(() => {
+        if (onSectionNavigate) onSectionNavigate(sectionId);
+      }, 80);
+    } else {
+      if (onSectionNavigate) onSectionNavigate(sectionId);
+    }
+  };
+
+  const isSectionActive = (secId) => {
+    return activeTab === 'about' && activeSection === secId;
   };
 
   return (
     <header className="navbar-wrapper">
       <div className="navbar">
         {/* Brand Logo (Dinamis dari PostgreSQL site_settings) */}
-        <div className="nav-brand" onClick={() => handleNav('about')}>
+        <div className="nav-brand" onClick={() => handleSectionOrTab('hero', 'about')}>
           <div className="brand-avatar">{siteSettings?.brand_avatar || 'R'}</div>
           <div className="brand-text">
             <h1>{siteSettings?.brand_name || 'Rakadnp'}</h1>
@@ -23,46 +50,54 @@ export default function Navbar({ activeTab, setActiveTab, systemOnline, siteSett
           </div>
         </div>
 
-        {/* Desktop Nav Links */}
+        {/* Desktop Nav Links (Synchronized with Full-Page Scroll Sections) */}
         <ul className="nav-links">
           <li>
             <button
-              className={`nav-link ${activeTab === 'about' ? 'active' : ''}`}
-              onClick={() => handleNav('about')}
+              className={`nav-link ${isSectionActive('hero') ? 'active' : ''}`}
+              onClick={() => handleSectionOrTab('hero', 'about')}
             >
-              Tentang
+              Home
             </button>
           </li>
           <li>
             <button
-              className={`nav-link ${activeTab === 'projects' ? 'active' : ''}`}
-              onClick={() => handleNav('projects')}
+              className={`nav-link ${isSectionActive('about') ? 'active' : ''}`}
+              onClick={() => handleSectionOrTab('about', 'about')}
             >
-              Project
+              About
             </button>
           </li>
           <li>
             <button
-              className={`nav-link ${activeTab === 'research' ? 'active' : ''}`}
-              onClick={() => handleNav('research')}
+              className={`nav-link ${isSectionActive('research') ? 'active' : ''}`}
+              onClick={() => handleSectionOrTab('research', 'about')}
             >
               Riset
             </button>
           </li>
           <li>
             <button
-              className={`nav-link ${activeTab === 'career' ? 'active' : ''}`}
-              onClick={() => handleNav('career')}
+              className={`nav-link ${isSectionActive('projects') ? 'active' : ''}`}
+              onClick={() => handleSectionOrTab('projects', 'about')}
             >
-              Karir
+              Projects
             </button>
           </li>
           <li>
             <button
-              className={`nav-link ${activeTab === 'blog' ? 'active' : ''}`}
-              onClick={() => handleNav('blog')}
+              className={`nav-link ${isSectionActive('blog') ? 'active' : ''}`}
+              onClick={() => handleSectionOrTab('blog', 'about')}
             >
               Blog
+            </button>
+          </li>
+          <li>
+            <button
+              className={`nav-link ${isSectionActive('contact') ? 'active' : ''}`}
+              onClick={() => handleSectionOrTab('contact', 'about')}
+            >
+              Contact
             </button>
           </li>
         </ul>
@@ -79,8 +114,8 @@ export default function Navbar({ activeTab, setActiveTab, systemOnline, siteSett
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <button
                 className={`nav-link ${activeTab === 'admin' ? 'active' : ''}`}
-                style={{ background: activeTab === 'admin' ? 'var(--primary)' : 'rgba(99, 102, 241, 0.2)', color: '#fff' }}
-                onClick={() => handleNav('admin')}
+                style={{ background: activeTab === 'admin' ? 'var(--primary)' : 'rgba(99, 102, 241, 0.2)', color: '#fff', borderRadius: '6px', padding: '0.35rem 0.75rem' }}
+                onClick={() => handleSectionOrTab(null, 'admin')}
               >
                 <span>CMS Admin</span>
               </button>
@@ -110,12 +145,13 @@ export default function Navbar({ activeTab, setActiveTab, systemOnline, siteSett
             </button>
           )}
 
-          {/* Contact CTA */}
+          {/* Hire Me / Contact CTA */}
           <button
             className="nav-cta-btn"
-            onClick={() => handleNav('contact')}
+            onClick={() => handleSectionOrTab('contact', 'about')}
+            title="Lompat ke bagian Kontak & Kolaborasi"
           >
-            <span>Mari Bicara</span>
+            <span>Hire Me</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="7" y1="17" x2="17" y2="7" />
               <polyline points="7 7 17 7 17 17" />
@@ -149,26 +185,26 @@ export default function Navbar({ activeTab, setActiveTab, systemOnline, siteSett
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
         <div className="mobile-menu open">
-          <button className={`nav-link ${activeTab === 'about' ? 'active' : ''}`} onClick={() => handleNav('about')}>
-            Tentang Saya & Profil
+          <button className={`nav-link ${isSectionActive('hero') ? 'active' : ''}`} onClick={() => handleSectionOrTab('hero', 'about')}>
+            Home (Hero)
           </button>
-          <button className={`nav-link ${activeTab === 'projects' ? 'active' : ''}`} onClick={() => handleNav('projects')}>
-            Software Projects
+          <button className={`nav-link ${isSectionActive('about') ? 'active' : ''}`} onClick={() => handleSectionOrTab('about', 'about')}>
+            About Me & Statistik
           </button>
-          <button className={`nav-link ${activeTab === 'research' ? 'active' : ''}`} onClick={() => handleNav('research')}>
+          <button className={`nav-link ${isSectionActive('research') ? 'active' : ''}`} onClick={() => handleSectionOrTab('research', 'about')}>
             Riset & Publikasi
           </button>
-          <button className={`nav-link ${activeTab === 'career' ? 'active' : ''}`} onClick={() => handleNav('career')}>
-            Perjalanan Karir
+          <button className={`nav-link ${isSectionActive('projects') ? 'active' : ''}`} onClick={() => handleSectionOrTab('projects', 'about')}>
+            Featured Projects
           </button>
-          <button className={`nav-link ${activeTab === 'blog' ? 'active' : ''}`} onClick={() => handleNav('blog')}>
+          <button className={`nav-link ${isSectionActive('blog') ? 'active' : ''}`} onClick={() => handleSectionOrTab('blog', 'about')}>
             Personal Blog
           </button>
-          <button className={`nav-link ${activeTab === 'contact' ? 'active' : ''}`} onClick={() => handleNav('contact')}>
+          <button className={`nav-link ${isSectionActive('contact') ? 'active' : ''}`} onClick={() => handleSectionOrTab('contact', 'about')}>
             Kontak & Kolaborasi ↗
           </button>
           {isAuthenticated ? (
-            <button className={`nav-link ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => handleNav('admin')}>
+            <button className={`nav-link ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => handleSectionOrTab(null, 'admin')}>
               ⚙️ CMS Dashboard Admin
             </button>
           ) : (

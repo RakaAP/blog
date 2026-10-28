@@ -33,10 +33,12 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 1. Endpoint Publik: Pembacaan Data & Konfigurasi
                         .requestMatchers(HttpMethod.GET, "/api/profile", "/api/profile/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/researches", "/api/researches/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/settings", "/api/settings/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/projects/**", "/api/career/**", "/api/posts/**").permitAll()
@@ -52,9 +54,9 @@ public class SecurityConfig {
                         .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/actuator/**", "/api/health").permitAll()
 
                         // 5. Endpoint Terproteksi: Mutasi Data (Hanya Dapat Diakses Oleh Peran ADMIN)
-                        .requestMatchers(HttpMethod.POST, "/api/posts/**", "/api/projects/**", "/api/career/**", "/api/settings/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/api/posts/**", "/api/projects/**", "/api/career/**", "/api/profile/**", "/api/settings/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/posts/**", "/api/projects/**", "/api/career/**", "/api/profile/**", "/api/settings/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/posts/**", "/api/projects/**", "/api/career/**", "/api/settings/**", "/api/researches/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/posts/**", "/api/projects/**", "/api/career/**", "/api/profile/**", "/api/settings/**", "/api/researches/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/posts/**", "/api/projects/**", "/api/career/**", "/api/profile/**", "/api/settings/**", "/api/researches/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/profile/avatar").hasRole("ADMIN")
 
                         // 6. Request lainnya

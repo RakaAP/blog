@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AuthProvider } from './shared/context/AuthContext';
 import Navbar from './shared/components/Navbar';
 import Footer from './shared/components/Footer';
+import SideNavDots from './shared/components/SideNavDots';
+import { useActiveSection } from './shared/hooks/useActiveSection';
 import AboutModule from './modules/about/AboutModule';
 import ProjectsModule from './modules/projects/ProjectsModule';
 import ResearchModule from './modules/research/ResearchModule';
@@ -18,6 +20,22 @@ function MainApp() {
   const [toast, setToast] = useState(null);
   const [siteSettings, setSiteSettings] = useState({});
 
+  // 1. Ref and IntersectionObserver / Snap-Event Active Section Tracker
+  const scrollContainerRef = useRef(null);
+  const portfolioSectionIds = useMemo(() => ['hero', 'about', 'research', 'projects', 'blog', 'contact'], []);
+  const { activeSection, scrollToSection } = useActiveSection(portfolioSectionIds, scrollContainerRef, activeTab);
+
+  const handleSectionNavigate = (sectionId) => {
+    if (activeTab !== 'about') {
+      setActiveTab('about');
+      setTimeout(() => {
+        scrollToSection(sectionId);
+      }, 80);
+    } else {
+      scrollToSection(sectionId);
+    }
+  };
+
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3800);
@@ -28,7 +46,7 @@ function MainApp() {
     showToast(`Alamat email ${email} berhasil disalin ke clipboard!`);
   };
 
-  // 1. Fetch Dynamic Site Configurations from PostgreSQL: GET /api/settings
+  // 2. Fetch Dynamic Site Configurations from PostgreSQL: GET /api/settings
   const fetchSiteSettings = async () => {
     try {
       const res = await fetch('/api/settings');
@@ -44,7 +62,7 @@ function MainApp() {
     }
   };
 
-  // 2. Check Spring Boot & PostgreSQL status
+  // 3. Check Spring Boot & PostgreSQL status
   const checkHealth = async () => {
     try {
       const res = await fetch('/api/health');
@@ -66,69 +84,69 @@ function MainApp() {
   }, []);
 
   return (
-    <div>
-      {/* Sticky Header Navigation */}
+    <div className="app-shell">
+      {/* Fixed Header Navigation with Active State Synchronization */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        activeSection={activeSection}
+        onSectionNavigate={handleSectionNavigate}
         systemOnline={systemOnline}
         siteSettings={siteSettings}
         onOpenAdminLogin={() => setIsLoginModalOpen(true)}
       />
 
-      {/* Main Modular Body */}
-      <main className="app-container">
+      {/* Floating Side-Dot Navigation (Only displayed when viewing portfolio) */}
+      {activeTab === 'about' && (
+        <SideNavDots
+          activeSection={activeSection}
+          onNavigate={handleSectionNavigate}
+        />
+      )}
+
+      {/* Self-Contained Full-Viewport Vertical Scroll Container */}
+      <main
+        ref={scrollContainerRef}
+        className={`main-scroll-container ${activeTab === 'about' ? 'snap-container snap-y snap-mandatory scroll-smooth' : 'standard-scroll-container'}`}
+      >
         {activeTab === 'about' && (
           <AboutModule 
             onNavigate={setActiveTab} 
             onCopyEmail={handleCopyEmail} 
             onToast={showToast}
             siteSettings={siteSettings}
+            onScrollToSection={handleSectionNavigate}
           />
         )}
 
-        {activeTab === 'projects' && (
-          <ProjectsModule />
-        )}
-
-        {activeTab === 'research' && (
-          <ResearchModule />
-        )}
-
-        {activeTab === 'career' && (
-          <CareerModule />
-        )}
-
-        {activeTab === 'blog' && (
-          <BlogModule onToast={showToast} />
-        )}
-
-        {activeTab === 'contact' && (
-          <ContactModule onToast={showToast} onCopyEmail={handleCopyEmail} />
-        )}
-
-        {activeTab === 'admin' && (
-          <AdminDashboard 
-            onToast={showToast} 
-            onOpenLogin={() => setIsLoginModalOpen(true)} 
-            siteSettings={siteSettings}
-            onSettingsUpdated={fetchSiteSettings}
-          />
+        {activeTab !== 'about' && (
+          <div className="app-container standard-tab-view" style={{ paddingTop: '6rem' }}>
+            {activeTab === 'projects' && <ProjectsModule />}
+            {activeTab === 'research' && <ResearchModule />}
+            {activeTab === 'career' && <CareerModule />}
+            {activeTab === 'blog' && <BlogModule onToast={showToast} />}
+            {activeTab === 'contact' && <ContactModule onToast={showToast} onCopyEmail={handleCopyEmail} />}
+            {activeTab === 'admin' && (
+              <AdminDashboard 
+                onToast={showToast} 
+                onOpenLogin={() => setIsLoginModalOpen(true)} 
+                siteSettings={siteSettings}
+                onSettingsUpdated={fetchSiteSettings}
+              />
+            )}
+            <Footer onNavigate={setActiveTab} siteSettings={siteSettings} />
+          </div>
         )}
       </main>
-
-      {/* Footer */}
-      <Footer 
-        onNavigate={setActiveTab} 
-        siteSettings={siteSettings}
-      />
 
       {/* Admin Login Modal */}
       <AdminLoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         onToast={showToast}
-        onSuccess={() => setActiveTab('admin')}
+        onSuccess={() => {
+          setActiveTab('about');
+        }}
       />
 
       {/* Global Toast Feedback */}
