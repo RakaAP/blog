@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function ContactModule({ onToast, onCopyEmail }) {
+  const [profile, setProfile] = useState(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -9,6 +11,27 @@ export default function ContactModule({ onToast, onCopyEmail }) {
     message: ''
   });
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchContactProfile = async () => {
+      setLoadingProfile(true);
+      try {
+        const res = await fetch('/api/profile');
+        if (res.ok && isMounted) {
+          setProfile(await res.json());
+        }
+      } catch (e) {
+        console.warn('Gagal memuat kontak profil dari PostgreSQL:', e);
+      } finally {
+        if (isMounted) setLoadingProfile(false);
+      }
+    };
+    fetchContactProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,14 +81,22 @@ export default function ContactModule({ onToast, onCopyEmail }) {
             </div>
             <div className="contact-method-content">
               <h4>Email Resmi</h4>
-              <p>rakandp.dev@gmail.com</p>
-              <button className="btn-copy-email" onClick={() => onCopyEmail()}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                </svg>
-                <span>Salin Email</span>
-              </button>
+              {loadingProfile ? (
+                <span className="ui-skeleton" style={{ width: '180px', height: '16px', margin: '0.25rem 0' }} />
+              ) : (
+                <>
+                  <p>{profile?.email || '—'}</p>
+                  {profile?.email && (
+                    <button className="btn-copy-email" onClick={() => onCopyEmail(profile.email)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                      </svg>
+                      <span>Salin Email</span>
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -79,7 +110,11 @@ export default function ContactModule({ onToast, onCopyEmail }) {
             </div>
             <div className="contact-method-content">
               <h4>LinkedIn</h4>
-              <p>linkedin.com/in/rakandp</p>
+              {loadingProfile ? (
+                <span className="ui-skeleton" style={{ width: '160px', height: '16px', margin: '0.25rem 0' }} />
+              ) : (
+                <p>{profile?.linkedinUrl || '—'}</p>
+              )}
             </div>
           </div>
 
@@ -91,7 +126,11 @@ export default function ContactModule({ onToast, onCopyEmail }) {
             </div>
             <div className="contact-method-content">
               <h4>GitHub</h4>
-              <p>github.com/rakandp</p>
+              {loadingProfile ? (
+                <span className="ui-skeleton" style={{ width: '160px', height: '16px', margin: '0.25rem 0' }} />
+              ) : (
+                <p>{profile?.githubUrl || '—'}</p>
+              )}
             </div>
           </div>
 

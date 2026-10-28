@@ -200,7 +200,7 @@ class ProfileControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/profile/avatar/image harus dapat diakses secara publik (200 OK atau 302 Found)")
+    @DisplayName("GET /api/profile/avatar/image harus dapat diakses secara publik (200 OK atau 404 Not Found)")
     void testGetAvatarImageEndpoint() throws Exception {
         MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context)
                 .apply(springSecurity())
@@ -209,7 +209,7 @@ class ProfileControllerTest {
         mockMvc.perform(get("/api/profile/avatar/image"))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
-                    org.junit.jupiter.api.Assertions.assertTrue(status == 200 || status == 302);
+                    org.junit.jupiter.api.Assertions.assertTrue(status == 200 || status == 404);
                 });
     }
 }

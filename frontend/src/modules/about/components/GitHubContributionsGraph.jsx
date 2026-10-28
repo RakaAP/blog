@@ -6,13 +6,18 @@ import { ActivityCalendar } from 'react-activity-calendar';
  * Fetches public contribution data from https://github-contributions-api.jogruber.de/v4/{username}?y=last
  * Styled with our Dark Navy & Indigo/Violet palette.
  */
-export default function GitHubContributionsGraph({ username, profileUrl }) {
+export default function GitHubContributionsGraph({ username, profileUrl, isLoadingProfile = false }) {
   const [data, setData] = useState(null);
   const [total, setTotal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (isLoadingProfile) {
+      setLoading(true);
+      return;
+    }
+
     if (!username) {
       setLoading(false);
       return;
@@ -25,30 +30,14 @@ export default function GitHubContributionsGraph({ username, profileUrl }) {
       setLoading(true);
       setError(null);
 
-      const tryFetch = async (uname) => {
+      try {
         const res = await fetch(
-          `https://github-contributions-api.jogruber.de/v4/${uname}?y=last`,
+          `https://github-contributions-api.jogruber.de/v4/${username}?y=last`,
           { signal: controller.signal }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (json.error) throw new Error(json.error);
-        return json;
-      };
-
-      try {
-        let result;
-        try {
-          result = await tryFetch(username);
-        } catch (initialErr) {
-          // Smart fallback: if the database username 'rakandp' is not registered on GitHub,
-          // automatically attempt 'RakaAP' (the repository owner)
-          if (username.toLowerCase() === 'rakandp') {
-            result = await tryFetch('RakaAP');
-          } else {
-            throw initialErr;
-          }
-        }
+        const result = await res.json();
+        if (result.error) throw new Error(result.error);
 
         if (isMounted && result && Array.isArray(result.contributions)) {
           setData(result.contributions);
@@ -74,10 +63,10 @@ export default function GitHubContributionsGraph({ username, profileUrl }) {
       isMounted = false;
       controller.abort();
     };
-  }, [username]);
+  }, [username, isLoadingProfile]);
 
   // If no username provided and not loading, gracefully return null
-  if (!username && !loading) {
+  if (!username && !loading && !isLoadingProfile) {
     return null;
   }
 

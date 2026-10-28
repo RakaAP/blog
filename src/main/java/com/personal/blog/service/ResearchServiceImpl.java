@@ -65,11 +65,11 @@ public class ResearchServiceImpl implements ResearchService {
 
         Research research = Research.builder()
                 .profile(profile)
-                .year(dto.getYear() != null ? dto.getYear() : "2026")
+                .year(dto.getYear() != null ? dto.getYear() : "")
                 .journalName(dto.getJournalName() != null ? dto.getJournalName() : "")
                 .title(dto.getTitle() != null ? dto.getTitle() : "")
                 .summary(dto.getSummary() != null ? dto.getSummary() : "")
-                .researchers(dto.getResearchers() != null ? dto.getResearchers() : profile.getFullName())
+                .researchers(dto.getResearchers() != null ? dto.getResearchers() : "")
                 .doi(dto.getDoi())
                 .publicationUrl(dto.getPublicationUrl() != null ? UrlUtils.cleanPublicationUrl(dto.getPublicationUrl()) : null)
                 .displayOrder(dto.getDisplayOrder() != null ? dto.getDisplayOrder() : 0)

@@ -40,7 +40,7 @@ const extractGitHubUsername = (url) => {
   return '';
 };
 
-const EMPTY_PROFILE_SKELETON = {
+const INITIAL_EDIT_FORM = {
   name: '',
   fullName: '',
   role: '',
@@ -53,48 +53,27 @@ const EMPTY_PROFILE_SKELETON = {
   researches: []
 };
 
-const DEFAULT_FEATURED_PROJECTS = [
-  {
-    id: 1,
-    num: '01',
-    title: 'E-Commerce Platform',
-    desc: 'Full-stack e-commerce solution with modern UI/UX',
-    tag: 'Next.js & PostgreSQL'
-  },
-  {
-    id: 2,
-    num: '02',
-    title: 'Task Management App',
-    desc: 'Collaborative task management application',
-    tag: 'React & Spring Boot'
-  },
-  {
-    id: 3,
-    num: '03',
-    title: 'Crypto Dashboard',
-    desc: 'Real-time cryptocurrency tracking dashboard',
-    tag: 'TypeScript & WebSockets'
-  }
-];
-
-export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSettings, onScrollToSection }) {
+export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSettings, isLoadingSettings = false, onScrollToSection }) {
   const { adminUser, isAuthenticated } = useAuth();
   const isAdmin = isAuthenticated && adminUser?.role === 'ROLE_ADMIN';
 
-  const [profile, setProfile] = useState(EMPTY_PROFILE_SKELETON);
+  const [profile, setProfile] = useState(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [featuredProjects, setFeaturedProjects] = useState(DEFAULT_FEATURED_PROJECTS);
+  const [researches, setResearches] = useState([]);
+  const [isLoadingResearches, setIsLoadingResearches] = useState(true);
+  const [featuredProjects, setFeaturedProjects] = useState([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedResearch, setSelectedResearch] = useState(null);
   const [isViewingDocument, setIsViewingDocument] = useState(false);
   const [isPdfLoading, setIsPdfLoading] = useState(true);
   const [doiCopied, setDoiCopied] = useState(false);
-  const [editForm, setEditForm] = useState(EMPTY_PROFILE_SKELETON);
+  const [editForm, setEditForm] = useState(INITIAL_EDIT_FORM);
   const [imageError, setImageError] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [copiedField, setCopiedField] = useState(null);
   const fileInputRef = useRef(null);
-  const githubUsername = extractGitHubUsername(profile.githubUrl) || 'rakandp';
+  const githubUsername = extractGitHubUsername(profile?.githubUrl);
 
   // Handler menutup modal detail / reader riset
   const handleCloseResearchModal = () => {
@@ -133,28 +112,14 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
     }, 2000);
   };
 
-  // 1. Fetch Dynamic Author Profile directly from GET /api/profile (PostgreSQL)
+  // 1. Fetch Dynamic Author Profile directly from GET /api/profile (PostgreSQL Single Source of Truth)
   const fetchProfile = async () => {
     setIsLoadingProfile(true);
     try {
       const res = await fetch('/api/profile');
       if (res.ok) {
         const data = await res.json();
-        
-        // Ambil skills murni dari respon relasi One-to-Many tabel skills
-        let loadedSkills = [];
-        if (Array.isArray(data.skills) && data.skills.length > 0) {
-          loadedSkills = data.skills;
-        } else if (data.skillsJson) {
-          try {
-            const parsed = JSON.parse(data.skillsJson);
-            if (Array.isArray(parsed)) loadedSkills = parsed;
-          } catch (e) {
-            console.error('Gagal mem-parse skillsJson fallback:', e);
-          }
-        }
-
-        // Normalisasi format skills (dukung percent dan proficiency)
+        const loadedSkills = Array.isArray(data.skills) ? data.skills : [];
         const normalizedSkills = loadedSkills.map((sk) => ({
           ...sk,
           percent: sk.percent ?? sk.proficiency ?? 0,
@@ -162,10 +127,13 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
         }));
 
         const normalizedProfile = {
-          ...EMPTY_PROFILE_SKELETON,
           ...data,
-          fullName: data.fullName || data.name || '',
-          photoUrl: data.photoUrl || data.avatarUrl || '/author.jpg',
+          name: data.name || '',
+          fullName: data.fullName || '',
+          role: data.role || '',
+          headline: data.headline || '',
+          photoUrl: data.photoUrl || data.avatarUrl || '',
+          avatarUrl: data.avatarUrl || '',
           githubUrl: data.githubUrl || '',
           email: data.email || '',
           skills: normalizedSkills,
@@ -174,38 +142,69 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
 
         setProfile(normalizedProfile);
         setEditForm(normalizedProfile);
+      } else {
+        setProfile(null);
       }
     } catch (e) {
-      console.warn('Gagal memuat profil dinamis dari server:', e);
+      console.warn('Gagal memuat profil dari PostgreSQL:', e);
+      setProfile(null);
     } finally {
       setIsLoadingProfile(false);
     }
   };
 
-  // 2. Fetch Projects from GET /api/projects for the Featured Projects section
-  const fetchProjects = async () => {
+  // 2. Fetch Researches directly from GET /api/researches (PostgreSQL Single Source of Truth)
+  const fetchResearches = async () => {
+    setIsLoadingResearches(true);
     try {
-      const res = await fetch('/api/projects');
+      const res = await fetch('/api/researches');
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        setResearches(Array.isArray(data) ? data : []);
+      } else {
+        setResearches([]);
+      }
+    } catch (e) {
+      console.warn('Gagal memuat daftar riset dari PostgreSQL:', e);
+      setResearches([]);
+    } finally {
+      setIsLoadingResearches(false);
+    }
+  };
+
+  // 3. Fetch Projects directly from GET /api/projects?type=project (PostgreSQL Single Source of Truth)
+  const fetchProjects = async () => {
+    setIsLoadingProjects(true);
+    try {
+      const res = await fetch('/api/projects?type=project');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
           const mapped = data.slice(0, 3).map((p, idx) => ({
             id: p.id,
             num: String(idx + 1).padStart(2, '0'),
-            title: p.title,
-            desc: p.description || p.details || 'Aplikasi produksi performa tinggi dengan arsitektur modern.',
-            tag: p.tags || p.category || 'Fullstack'
+            title: p.title || '',
+            desc: p.description || p.details || '',
+            tag: p.tags || p.category || ''
           }));
           setFeaturedProjects(mapped);
+        } else {
+          setFeaturedProjects([]);
         }
+      } else {
+        setFeaturedProjects([]);
       }
-    } catch {
-      // Fallback to DEFAULT_FEATURED_PROJECTS
+    } catch (e) {
+      console.warn('Gagal memuat daftar proyek dari PostgreSQL:', e);
+      setFeaturedProjects([]);
+    } finally {
+      setIsLoadingProjects(false);
     }
   };
 
   useEffect(() => {
     fetchProfile();
+    fetchResearches();
     fetchProjects();
   }, []);
 
@@ -265,7 +264,10 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
       if (onToast) onToast('Akses ditolak: Silakan login sebagai Admin terlebih dahulu.', 'error');
       return;
     }
-    setEditForm(profile);
+    setEditForm({
+      ...(profile || INITIAL_EDIT_FORM),
+      researches: researches
+    });
     setIsEditModalOpen(true);
   };
 
@@ -279,8 +281,8 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
     }
 
     try {
-      // Pastikan avatarUrl tidak dikosongkan jika user hanya mengubah teks profil
-      const avatarToSave = editForm.photoUrl?.trim() || profile.photoUrl || '/api/profile/avatar/image';
+      // Pastikan avatarUrl tetap merujuk ke data PostgreSQL jika user hanya mengubah teks profil
+      const avatarToSave = editForm.photoUrl?.trim() || profile?.photoUrl || '';
 
       const cleanedResearches = (editForm.researches || []).map((r) => ({
         ...r,
@@ -312,23 +314,25 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
 
       if (res.ok) {
         const data = await res.json();
-        let loadedSkills = Array.isArray(data.skills) ? data.skills : editForm.skills;
+        const loadedSkills = Array.isArray(data.skills) ? data.skills : [];
         const normalizedSkills = loadedSkills.map((sk) => ({
           ...sk,
           percent: sk.percent ?? sk.proficiency ?? 0,
           proficiency: sk.proficiency ?? sk.percent ?? 0
         }));
+        const updatedResearches = Array.isArray(data.researches) ? data.researches : [];
 
         const merged = {
-          ...editForm,
           ...data,
-          photoUrl: data.photoUrl || data.avatarUrl || editForm.photoUrl,
-          githubUrl: data.githubUrl || editForm.githubUrl,
-          email: data.email || editForm.email,
+          photoUrl: data.photoUrl || data.avatarUrl || '',
+          avatarUrl: data.avatarUrl || '',
+          githubUrl: data.githubUrl || '',
+          email: data.email || '',
           skills: normalizedSkills,
-          researches: Array.isArray(data.researches) ? data.researches : (editForm.researches || [])
+          researches: updatedResearches
         };
         setProfile(merged);
+        setResearches(updatedResearches);
         setIsEditModalOpen(false);
         setImageError(false);
         if (onToast) onToast('Profil & konfigurasi portofolio berhasil diperbarui di database!');
@@ -454,80 +458,107 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
             </div>
           )}
 
-          <div className="portfolio-hero-container">
-            {/* Left Column: Headline, Bio, Buttons, Tech Logos */}
-            <div className="portfolio-hero-text">
-              <div className="hero-pill-badge">
-                <span className="pill-dot"></span>
-                <span>I'M A {profile.role ? profile.role.toUpperCase() : 'DEVELOPER'}</span>
-              </div>
-
-              <h1 className="hero-main-title">
-                Hi, I’m <span className="gradient-name">{profile.fullName || profile.name}</span>
-                <br />
-                <span className="headline-secondary">{profile.headline}</span>
-              </h1>
-
-              <div className="hero-button-group">
-                <button
-                  className="btn-primary-purple"
-                  onClick={() => onScrollToSection ? onScrollToSection('projects') : onNavigate('projects')}
-                >
-                  <span>View My Work</span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="7" y1="17" x2="17" y2="7" />
-                    <polyline points="7 7 17 7 17 17" />
-                  </svg>
-                </button>
-              </div>
-
-
-          {/* Technologies I Work With */}
-          <div className="hero-tech-strip">
-            <span className="tech-strip-label">TECHNOLOGIES I WORK WITH</span>
-            <div className="tech-strip-icons">
-              {renderTechIcon('html')}
-              {renderTechIcon('css')}
-              {renderTechIcon('js')}
-              {renderTechIcon('ts')}
-              {renderTechIcon('react')}
-              {renderTechIcon('next')}
-              {renderTechIcon('git')}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Circular Glowing Backdrop & Photo + Floating Code Card */}
-        <div className="portfolio-hero-visual">
-          <div className="hero-circle-stage">
-            {/* Ambient Purple Glowing Sphere */}
-            <div className="purple-glow-sphere"></div>
-
-            {/* Author Portrait Image */}
-            <div className="author-photo-wrapper rounded-3xl">
-              {!imageError && profile.photoUrl ? (
-                <img
-                  src={profile.photoUrl}
-                  alt={`${profile.name} - Portrait`}
-                  className="author-portrait-img rounded-3xl"
-                  onError={() => setImageError(true)}
-                />
-              ) : (
-                <div className="author-portrait-fallback rounded-3xl">
-                  <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  <span>{profile.name}</span>
+          {isLoadingProfile ? (
+            <div className="portfolio-hero-container" aria-label="Memuat profil dari PostgreSQL...">
+              <div className="portfolio-hero-text">
+                <span className="ui-skeleton" style={{ width: '175px', height: '30px', borderRadius: '9999px', marginBottom: '1.25rem' }} />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.75rem' }}>
+                  <span className="ui-skeleton" style={{ width: '88%', height: '48px', borderRadius: '10px' }} />
+                  <span className="ui-skeleton" style={{ width: '65%', height: '38px', borderRadius: '10px' }} />
                 </div>
-              )}
+                <span className="ui-skeleton" style={{ width: '165px', height: '46px', borderRadius: '12px', marginBottom: '2rem' }} />
+              </div>
+              <div className="portfolio-hero-visual">
+                <div className="hero-circle-stage">
+                  <div className="purple-glow-sphere"></div>
+                  <div className="author-photo-wrapper rounded-3xl">
+                    <span className="ui-skeleton rounded-3xl" style={{ width: '100%', height: '100%', borderRadius: '1.5rem' }} />
+                  </div>
+                </div>
+              </div>
             </div>
+          ) : profile ? (
+            <div className="portfolio-hero-container">
+              {/* Left Column: Headline, Bio, Buttons, Tech Logos */}
+              <div className="portfolio-hero-text">
+                {profile.role && (
+                  <div className="hero-pill-badge">
+                    <span className="pill-dot"></span>
+                    <span>I'M A {profile.role.toUpperCase()}</span>
+                  </div>
+                )}
 
+                <h1 className="hero-main-title">
+                  Hi, I’m <span className="gradient-name">{profile.fullName || profile.name}</span>
+                  {profile.headline && (
+                    <>
+                      <br />
+                      <span className="headline-secondary">{profile.headline}</span>
+                    </>
+                  )}
+                </h1>
+
+                <div className="hero-button-group">
+                  <button
+                    className="btn-primary-purple"
+                    onClick={() => onScrollToSection ? onScrollToSection('projects') : onNavigate('projects')}
+                  >
+                    <span>View My Work</span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="7" y1="17" x2="17" y2="7" />
+                      <polyline points="7 7 17 7 17 17" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Technologies I Work With */}
+                <div className="hero-tech-strip">
+                  <span className="tech-strip-label">TECHNOLOGIES I WORK WITH</span>
+                  <div className="tech-strip-icons">
+                    {renderTechIcon('html')}
+                    {renderTechIcon('css')}
+                    {renderTechIcon('js')}
+                    {renderTechIcon('ts')}
+                    {renderTechIcon('react')}
+                    {renderTechIcon('next')}
+                    {renderTechIcon('git')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Ambient Glowing Backdrop & Photo */}
+              <div className="portfolio-hero-visual">
+                <div className="hero-circle-stage">
+                  <div className="purple-glow-sphere"></div>
+
+                  <div className="author-photo-wrapper rounded-3xl">
+                    {!imageError && profile.photoUrl ? (
+                      <img
+                        src={profile.photoUrl}
+                        alt={`${profile.fullName || profile.name} - Portrait`}
+                        className="author-portrait-img rounded-3xl"
+                        onError={() => setImageError(true)}
+                      />
+                    ) : (
+                      <div className="author-portrait-fallback rounded-3xl">
+                        <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                        <span>{profile.name || profile.fullName}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '3rem 1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+              Data profil belum tersedia di database PostgreSQL.
+            </div>
+          )}
         </div>
-      </div>
-    </section>
+      </section>
 
       {/* ========================================================================= */}
       {/* 2. ABOUT ME & 2x2 STATS SECTION (FULL-VIEWPORT SNAP)                      */}
@@ -538,9 +569,17 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
             <div className="about-narrative-card">
               <span className="section-pill-tag">ABOUT ME</span>
               <h3 className="about-narrative-title">I’m passionate about creating digital solutions</h3>
-              <p className="about-narrative-desc">
-                With {siteSettings?.stats_experience || profile.experience || '4+'} of experience in web development, I help businesses and individuals bring their ideas to life through clean, efficient, and user-friendly code.
-              </p>
+              {isLoadingSettings && isLoadingProfile ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', margin: '1rem 0 1.5rem 0' }}>
+                  <span className="ui-skeleton" style={{ width: '100%', height: '16px' }} />
+                  <span className="ui-skeleton" style={{ width: '92%', height: '16px' }} />
+                  <span className="ui-skeleton" style={{ width: '74%', height: '16px' }} />
+                </div>
+              ) : (
+                <p className="about-narrative-desc">
+                  With {siteSettings?.stats_experience || profile?.experience || '—'} of experience in software engineering and web development, I help businesses and individuals bring their ideas to life through clean, efficient, and user-friendly code.
+                </p>
+              )}
               <button
                 className="btn-learn-more"
                 onClick={() => onScrollToSection ? onScrollToSection('contact') : onNavigate('contact')}
@@ -553,7 +592,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
               </button>
             </div>
 
-        {/* 2x2 Stats Grid with Purple Icon Squares */}
+        {/* 2x2 Stats Grid with Purple Icon Squares (Murni dari PostgreSQL site_settings) */}
         <div className="about-stats-grid">
           {/* Card 1: Experience */}
           <div className="about-stat-card">
@@ -566,7 +605,13 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
               </svg>
             </div>
             <div className="stat-card-text">
-              <div className="stat-number">{siteSettings?.stats_experience || '4+'}</div>
+              <div className="stat-number">
+                {isLoadingSettings ? (
+                  <span className="ui-skeleton" style={{ width: '64px', height: '26px' }} />
+                ) : (
+                  siteSettings?.stats_experience || profile?.experience || '—'
+                )}
+              </div>
               <div className="stat-label">Years Experience</div>
             </div>
           </div>
@@ -580,28 +625,38 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
               </svg>
             </div>
             <div className="stat-card-text">
-              <div className="stat-number">{siteSettings?.stats_projects || '50+'}</div>
+              <div className="stat-number">
+                {isLoadingSettings ? (
+                  <span className="ui-skeleton" style={{ width: '48px', height: '26px' }} />
+                ) : (
+                  siteSettings?.stats_projects || '—'
+                )}
+              </div>
               <div className="stat-label">Projects Completed</div>
             </div>
           </div>
 
-          {/* Card 3: Happy Clients */}
+          {/* Card 3: Research & Publications */}
           <div className="about-stat-card">
             <div className="stat-icon-square purple">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                <line x1="9" y1="9" x2="9.01" y2="9" />
-                <line x1="15" y1="9" x2="15.01" y2="9" />
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
               </svg>
             </div>
             <div className="stat-card-text">
-              <div className="stat-number">{siteSettings?.stats_clients || '30+'}</div>
-              <div className="stat-label">Happy Clients</div>
+              <div className="stat-number">
+                {isLoadingSettings && isLoadingResearches ? (
+                  <span className="ui-skeleton" style={{ width: '48px', height: '26px' }} />
+                ) : (
+                  siteSettings?.stats_research || String(researches.length)
+                )}
+              </div>
+              <div className="stat-label">Research &amp; Publications</div>
             </div>
           </div>
 
-          {/* Card 4: Satisfaction */}
+          {/* Card 4: System Uptime */}
           <div className="about-stat-card">
             <div className="stat-icon-square purple">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -614,8 +669,14 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
               </svg>
             </div>
             <div className="stat-card-text">
-              <div className="stat-number">{siteSettings?.stats_uptime || '100%'}</div>
-              <div className="stat-label">Client Satisfaction</div>
+              <div className="stat-number">
+                {isLoadingSettings ? (
+                  <span className="ui-skeleton" style={{ width: '64px', height: '26px' }} />
+                ) : (
+                  siteSettings?.stats_uptime || '—'
+                )}
+              </div>
+              <div className="stat-label">System Uptime</div>
             </div>
           </div>
         </div>
@@ -634,21 +695,21 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
               <h3 className="section-title-large">Riset & Publikasi Ilmiah</h3>
             </div>
 
-            {isLoadingProfile ? (
-              <div className="research-cards-grid">
+            {isLoadingResearches ? (
+              <div className="research-cards-grid" aria-label="Memuat riset dari PostgreSQL...">
                 {[1, 2, 3].map((sk) => (
-                  <div key={sk} className="research-card" style={{ opacity: 0.6 }}>
-                    <div style={{ height: '24px', width: '45%', background: 'rgba(255,255,255,0.08)', borderRadius: '9999px', marginBottom: '1rem' }} />
-                    <div style={{ height: '22px', width: '85%', background: 'rgba(255,255,255,0.08)', borderRadius: '6px', marginBottom: '0.75rem' }} />
-                    <div style={{ height: '14px', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', marginBottom: '0.5rem' }} />
-                    <div style={{ height: '14px', width: '70%', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', marginBottom: '1.5rem' }} />
-                    <div style={{ height: '36px', width: '100%', background: 'rgba(255,255,255,0.08)', borderRadius: '10px' }} />
+                  <div key={sk} className="research-card" style={{ opacity: 0.7 }}>
+                    <span className="ui-skeleton" style={{ height: '24px', width: '45%', borderRadius: '9999px', marginBottom: '1rem' }} />
+                    <span className="ui-skeleton" style={{ height: '22px', width: '85%', borderRadius: '6px', marginBottom: '0.75rem' }} />
+                    <span className="ui-skeleton" style={{ height: '14px', width: '100%', borderRadius: '4px', marginBottom: '0.5rem' }} />
+                    <span className="ui-skeleton" style={{ height: '14px', width: '70%', borderRadius: '4px', marginBottom: '1.5rem' }} />
+                    <span className="ui-skeleton" style={{ height: '36px', width: '100%', borderRadius: '10px' }} />
                   </div>
                 ))}
               </div>
-            ) : profile.researches && profile.researches.length > 0 ? (
+            ) : researches.length > 0 ? (
               <div className="research-cards-grid">
-                {profile.researches.map((res, idx) => (
+                {researches.map((res, idx) => (
                   <div key={res.id || idx} className="research-card">
                     {/* 1. Tahun & Nama Jurnal Badge */}
                     <div className="research-card-header">
@@ -710,39 +771,60 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
           <h3 className="section-title-large">Some of My Recent Work</h3>
         </div>
 
-        <div className="featured-projects-grid">
-          {featuredProjects.map((proj, idx) => (
-            <div key={proj.id || idx} className="featured-project-card" onClick={() => onNavigate('projects')}>
-              <div className="project-card-banner">
-                <span className="project-number-tag">{proj.num}</span>
-                {/* Modern Dashboard Screen Mockup */}
-                <div className="project-mockup-frame">
-                  <div className="mockup-top-nav">
-                    <span className="dot dot-red"></span>
-                    <span className="dot dot-yellow"></span>
-                    <span className="dot dot-green"></span>
-                  </div>
-                  <div className={`mockup-body-preview theme-${idx % 3}`}>
-                    <div className="mockup-chart-circle"></div>
-                    <div className="mockup-chart-bars">
-                      <span></span><span></span><span></span><span></span>
+        {isLoadingProjects ? (
+          <div className="featured-projects-grid" aria-label="Memuat proyek dari PostgreSQL...">
+            {[1, 2, 3].map((sk) => (
+              <div key={sk} className="featured-project-card" style={{ pointerEvents: 'none' }}>
+                <div className="project-card-banner">
+                  <span className="ui-skeleton" style={{ width: '100%', height: '140px', borderRadius: '12px' }} />
+                </div>
+                <div className="project-card-details" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  <span className="ui-skeleton" style={{ width: '75%', height: '20px' }} />
+                  <span className="ui-skeleton" style={{ width: '100%', height: '14px' }} />
+                  <span className="ui-skeleton" style={{ width: '60%', height: '14px' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : featuredProjects.length > 0 ? (
+          <div className="featured-projects-grid">
+            {featuredProjects.map((proj, idx) => (
+              <div key={proj.id || idx} className="featured-project-card" onClick={() => onNavigate('projects')}>
+                <div className="project-card-banner">
+                  <span className="project-number-tag">{proj.num}</span>
+                  {/* Modern Dashboard Screen Mockup */}
+                  <div className="project-mockup-frame">
+                    <div className="mockup-top-nav">
+                      <span className="dot dot-red"></span>
+                      <span className="dot dot-yellow"></span>
+                      <span className="dot dot-green"></span>
+                    </div>
+                    <div className={`mockup-body-preview theme-${idx % 3}`}>
+                      <div className="mockup-chart-circle"></div>
+                      <div className="mockup-chart-bars">
+                        <span></span><span></span><span></span><span></span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="project-card-details">
-                <h4 className="project-card-heading">{proj.title}</h4>
-                <p className="project-card-summary">{proj.desc}</p>
-                <div className="project-card-bottom">
-                  <span className="project-view-cta">
-                    View Project <span className="arrow-sym">→</span>
-                  </span>
+                <div className="project-card-details">
+                  <h4 className="project-card-heading">{proj.title}</h4>
+                  <p className="project-card-summary">{proj.desc}</p>
+                  <div className="project-card-bottom">
+                    <span className="project-view-cta">
+                      View Project <span className="arrow-sym">→</span>
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '3rem 1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px dashed rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}>
+            Belum ada data proyek perangkat lunak di database PostgreSQL.
+          </div>
+        )}
 
         {/* Carousel Pagination Dots */}
         <div className="featured-carousel-dots">
@@ -774,7 +856,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                 </p>
               </div>
 
-              {/* 1. Baris Kontak 2 Kolom Seimbang: Email Langsung & GitHub Profile */}
+              {/* 1. Baris Kontak 2 Kolom Seimbang: Email Langsung & GitHub Profile (Murni dari PostgreSQL) */}
               <div className="contact-two-column-grid">
                 {/* Kartu 1: Email Langsung dengan Tombol Salin */}
                 <div className="contact-direct-card">
@@ -787,47 +869,55 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                     </div>
                     <div className="contact-card-text">
                       <span className="contact-card-label">Email Langsung</span>
-                      <a
-                        href={`mailto:${profile.email || 'rakandp.dev@gmail.com'}`}
-                        className="contact-card-val"
-                        title={`Kirim email ke ${profile.email || 'rakandp.dev@gmail.com'}`}
-                      >
-                        {profile.email || 'rakandp.dev@gmail.com'}
-                      </a>
+                      {isLoadingProfile ? (
+                        <span className="ui-skeleton" style={{ width: '175px', height: '16px', marginTop: '0.2rem' }} />
+                      ) : profile?.email ? (
+                        <a
+                          href={`mailto:${profile.email}`}
+                          className="contact-card-val"
+                          title={`Kirim email ke ${profile.email}`}
+                        >
+                          {profile.email}
+                        </a>
+                      ) : (
+                        <span className="contact-card-val">—</span>
+                      )}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className={`btn-copy-chip ${copiedField === 'email' ? 'copied' : ''}`}
-                    onClick={() => handleCopyText(profile.email || 'rakandp.dev@gmail.com', 'email')}
-                    title="Salin alamat email"
-                  >
-                    {copiedField === 'email' ? (
-                      <>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        <span>Tersalin</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                        <span>Salin</span>
-                      </>
-                    )}
-                  </button>
+                  {!isLoadingProfile && profile?.email && (
+                    <button
+                      type="button"
+                      className={`btn-copy-chip ${copiedField === 'email' ? 'copied' : ''}`}
+                      onClick={() => handleCopyText(profile.email, 'email')}
+                      title="Salin alamat email"
+                    >
+                      {copiedField === 'email' ? (
+                        <>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <span>Tersalin</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                          <span>Salin</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 {/* Kartu 2: GitHub Profile dengan Link Langsung */}
                 <a
-                  href={profile.githubUrl || `https://github.com/${githubUsername || 'rakandp'}`}
+                  href={!isLoadingProfile && profile?.githubUrl ? profile.githubUrl : undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="contact-direct-card github-card-link"
-                  title={`Buka profil GitHub @${githubUsername || 'rakandp'}`}
+                  title={githubUsername ? `Buka profil GitHub @${githubUsername}` : 'Profil GitHub'}
                 >
                   <div className="contact-card-left">
                     <div className="contact-card-icon-wrap github">
@@ -837,31 +927,46 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                     </div>
                     <div className="contact-card-text">
                       <span className="contact-card-label">GitHub Profile</span>
-                      <span className="contact-card-val">@{githubUsername || 'rakandp'}</span>
+                      {isLoadingProfile ? (
+                        <span className="ui-skeleton" style={{ width: '115px', height: '16px', marginTop: '0.2rem' }} />
+                      ) : (
+                        <span className="contact-card-val">{githubUsername ? `@${githubUsername}` : '—'}</span>
+                      )}
                     </div>
                   </div>
-                  <div className="contact-link-pill">
-                    <span>Lihat Profil</span>
-                    <span className="contact-arrow-icon">↗</span>
-                  </div>
+                  {!isLoadingProfile && profile?.githubUrl && (
+                    <div className="contact-link-pill">
+                      <span>Lihat Profil</span>
+                      <span className="contact-arrow-icon">↗</span>
+                    </div>
+                  )}
                 </a>
               </div>
 
               {/* 2. Kartu Live Heatmap GitHub Contributions */}
               <GitHubContributionsGraph
-                username={githubUsername || 'rakandp'}
-                profileUrl={profile.githubUrl}
+                username={githubUsername}
+                profileUrl={profile?.githubUrl}
+                isLoadingProfile={isLoadingProfile}
               />
             </div>
           </div>
 
           <div className="bottom-copyright-strip">
-            <p className="copyright-text">
-              © {new Date().getFullYear()} {profile.fullName || profile.name || 'Personal Blog'}. All rights reserved.
-            </p>
-            <p className="made-with-love">
-              Made with <span className="heart-icon">❤️</span> by {profile.name || profile.fullName || 'Admin'}
-            </p>
+            {isLoadingProfile ? (
+              <span className="ui-skeleton" style={{ width: '260px', height: '14px' }} />
+            ) : (
+              <>
+                <p className="copyright-text">
+                  © {new Date().getFullYear()} {profile?.fullName || profile?.name || ''}. All rights reserved.
+                </p>
+                {(profile?.name || profile?.fullName) && (
+                  <p className="made-with-love">
+                    Made with <span className="heart-icon">❤️</span> by {profile?.name || profile?.fullName}
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -1062,7 +1167,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="/author.jpg atau https://..."
+                    placeholder="/api/profile/avatar/image atau https://..."
                     value={editForm.photoUrl}
                     onChange={(e) => setEditForm({ ...editForm, photoUrl: e.target.value })}
                   />
@@ -1087,7 +1192,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="Raka A.P."
+                    placeholder="Nama Lengkap"
                     value={editForm.fullName}
                     onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
                     required
@@ -1098,7 +1203,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="rakandp"
+                    placeholder="username"
                     value={editForm.name}
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                     required
@@ -1113,7 +1218,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="Web Developer, Software Architect, dll"
+                    placeholder="Software Engineer"
                     value={editForm.role}
                     onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
                     required
@@ -1124,7 +1229,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="I build things for the web."
+                    placeholder="Headline profil"
                     value={editForm.headline}
                     onChange={(e) => setEditForm({ ...editForm, headline: e.target.value })}
                     required
@@ -1139,7 +1244,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                   <input
                     type="email"
                     className="form-input"
-                    placeholder="rakandp.dev@gmail.com"
+                    placeholder="nama@domain.com"
                     value={editForm.email || ''}
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                   />
@@ -1149,7 +1254,7 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="https://github.com/rakandp"
+                    placeholder="https://github.com/username"
                     value={editForm.githubUrl || ''}
                     onChange={(e) => setEditForm({ ...editForm, githubUrl: e.target.value })}
                   />

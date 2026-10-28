@@ -2081,6 +2081,13 @@ body {
   }
 }
 
+.ui-skeleton {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  animation: skeletonPulse 1.5s infinite ease-in-out;
+}
+
 /* Fallback Card */
 .github-fallback-card {
   display: flex;

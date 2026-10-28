@@ -15,6 +15,7 @@ import com.personal.blog.repository.ResearchRepository;
 import com.personal.blog.repository.SkillRepository;
 import com.personal.blog.repository.TestimonialRepository;
 import com.personal.blog.util.UrlUtils;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -38,15 +39,14 @@ public class ProfileServiceImpl implements ProfileService {
     private final SkillRepository skillRepository;
     private final TestimonialRepository testimonialRepository;
     private final ResearchRepository researchRepository;
-    private final FileStorageService fileStorageService;
 
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = CACHE_NAME, key = "'public'")
     public ProfilePublicDto getPublicProfile() {
-        log.info("[CACHE MISS] Mengambil data profil publik langsung dari database PostgreSQL...");
+        log.info("[CACHE MISS] Mengambil data profil publik murni dari database PostgreSQL...");
         Profile profile = profileRepository.findFirstByOrderByIdAsc()
-                .orElseGet(this::createDefaultProfile);
+                .orElseThrow(() -> new EntityNotFoundException("Data profil belum tersedia di database PostgreSQL."));
 
         List<Skill> skills = skillRepository.findByProfileIdOrderByDisplayOrderAscIdAsc(profile.getId());
         List<Testimonial> testimonials = testimonialRepository.findByProfileIdOrderByDisplayOrderAscIdAsc(profile.getId());
@@ -59,31 +59,31 @@ public class ProfileServiceImpl implements ProfileService {
     @Transactional
     @CacheEvict(value = CACHE_NAME, allEntries = true)
     public ProfilePublicDto updateProfile(ProfileUpdateRequest request) {
-        log.info("[CACHE EVICT] Memperbarui profil penulis dan membersihkan cache '{}'...", CACHE_NAME);
+        log.info("[CACHE EVICT] Memperbarui profil penulis di PostgreSQL dan membersihkan cache '{}'...", CACHE_NAME);
         Profile profile = profileRepository.findFirstByOrderByIdAsc()
-                .orElseGet(this::createDefaultProfile);
+                .orElseThrow(() -> new EntityNotFoundException("Data profil belum tersedia di database PostgreSQL."));
 
         if (request.getName() != null) profile.setName(request.getName());
         if (request.getFullName() != null) profile.setFullName(request.getFullName());
         if (request.getRole() != null) profile.setRole(request.getRole());
         if (request.getHeadline() != null) profile.setHeadline(request.getHeadline());
         if (request.getBio() != null) profile.setBio(request.getBio());
+
         String avatar = request.getPhotoUrl() != null && !request.getPhotoUrl().isBlank()
                 ? request.getPhotoUrl()
                 : request.getAvatarUrl();
         if (avatar != null && !avatar.isBlank()) {
-            // Jika data biner avatar_data sudah tersimpan di database dan avatar_url saat ini
-            // mengarah ke endpoint gambar database (/api/profile/avatar/image), pertahankan URL tersebut
-            // agar perubahan teks profil tidak me-reset avatar ke default /author.jpg
+            // Pertahankan URL endpoint avatar database jika avatar_data biner sudah tersimpan di PostgreSQL
             if (profile.getAvatarData() != null && profile.getAvatarData().length > 0) {
                 if (profile.getAvatarUrl() != null && profile.getAvatarUrl().startsWith("/api/profile/avatar/image")) {
-                    if (avatar.equals("/author.jpg") || !avatar.startsWith("/api/profile/avatar/image")) {
+                    if (!avatar.startsWith("/api/profile/avatar/image") && !avatar.startsWith("http")) {
                         avatar = profile.getAvatarUrl();
                     }
                 }
             }
             profile.setAvatarUrl(avatar);
         }
+
         if (request.getLocation() != null) profile.setLocation(request.getLocation());
         if (request.getExperience() != null) profile.setExperience(request.getExperience());
         if (request.getSpecialization() != null) profile.setSpecialization(request.getSpecialization());
@@ -100,27 +100,27 @@ public class ProfileServiceImpl implements ProfileService {
         if (request.getSkillsJson() != null) profile.setSkillsJson(request.getSkillsJson());
         if (request.getTestimonialJson() != null) profile.setTestimonialJson(request.getTestimonialJson());
 
-        // Update skills jika disediakan dalam request
+        // Sinkronisasi skills jika disediakan dalam request
         if (request.getSkills() != null) {
             skillRepository.deleteAll(skillRepository.findByProfileIdOrderByDisplayOrderAscIdAsc(profile.getId()));
             int order = 1;
             for (SkillDto dto : request.getSkills()) {
                 int percentVal = dto.getProficiency() != null ? dto.getProficiency()
-                        : (dto.getPercent() != null ? dto.getPercent() : 85);
+                        : (dto.getPercent() != null ? dto.getPercent() : 0);
                 Skill s = Skill.builder()
                         .profile(profile)
                         .name(dto.getName())
                         .icon(dto.getIcon())
                         .proficiency(percentVal)
                         .color(dto.getColor())
-                        .category(dto.getCategory() != null ? dto.getCategory() : "general")
+                        .category(dto.getCategory())
                         .displayOrder(dto.getDisplayOrder() != null ? dto.getDisplayOrder() : order++)
                         .build();
                 skillRepository.save(s);
             }
         }
 
-        // Update testimonials jika disediakan dalam request
+        // Sinkronisasi testimonials jika disediakan dalam request
         if (request.getTestimonials() != null) {
             testimonialRepository.deleteAll(testimonialRepository.findByProfileIdOrderByDisplayOrderAscIdAsc(profile.getId()));
             int order = 1;
@@ -158,18 +158,18 @@ public class ProfileServiceImpl implements ProfileService {
             }
         }
 
-        // Update researches jika disediakan dalam request
+        // Sinkronisasi researches jika disediakan dalam request
         if (request.getResearches() != null) {
             researchRepository.deleteAll(researchRepository.findByProfileIdOrderByDisplayOrderAscYearDescIdAsc(profile.getId()));
             int order = 1;
             for (ResearchDto rDto : request.getResearches()) {
                 Research r = Research.builder()
                         .profile(profile)
-                        .year(rDto.getYear() != null ? rDto.getYear() : "2026")
+                        .year(rDto.getYear() != null ? rDto.getYear() : "")
                         .journalName(rDto.getJournalName() != null ? rDto.getJournalName() : "")
                         .title(rDto.getTitle() != null ? rDto.getTitle() : "")
                         .summary(rDto.getSummary() != null ? rDto.getSummary() : "")
-                        .researchers(rDto.getResearchers() != null ? rDto.getResearchers() : profile.getFullName())
+                        .researchers(rDto.getResearchers() != null ? rDto.getResearchers() : "")
                         .doi(rDto.getDoi())
                         .publicationUrl(rDto.getPublicationUrl() != null ? UrlUtils.cleanPublicationUrl(rDto.getPublicationUrl()) : null)
                         .displayOrder(rDto.getDisplayOrder() != null ? rDto.getDisplayOrder() : order++)
@@ -197,7 +197,7 @@ public class ProfileServiceImpl implements ProfileService {
     @Transactional
     @CacheEvict(value = CACHE_NAME, allEntries = true)
     public String uploadAvatar(MultipartFile file) {
-        log.info("[CACHE EVICT] Mengunggah foto profil baru dan membersihkan cache '{}'...", CACHE_NAME);
+        log.info("[CACHE EVICT] Mengunggah foto profil langsung ke PostgreSQL dan membersihkan cache '{}'...", CACHE_NAME);
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Berkas avatar tidak boleh kosong.");
@@ -219,15 +219,8 @@ public class ProfileServiceImpl implements ProfileService {
             throw new RuntimeException("Gagal membaca byte berkas avatar", e);
         }
 
-        // Simpan juga ke filesystem lokal sebagai fallback sekunder
-        try {
-            fileStorageService.storeAvatar(file);
-        } catch (Exception e) {
-            log.warn("Penyimpanan fallback filesystem lokal gagal (diabaikan karena PostgreSQL aktif): {}", e.getMessage());
-        }
-
         Profile profile = profileRepository.findFirstByOrderByIdAsc()
-                .orElseGet(this::createDefaultProfile);
+                .orElseThrow(() -> new EntityNotFoundException("Data profil belum tersedia di database PostgreSQL."));
 
         String avatarUrl = "/api/profile/avatar/image?t=" + System.currentTimeMillis();
         profile.setAvatarData(bytes);
@@ -257,10 +250,10 @@ public class ProfileServiceImpl implements ProfileService {
     @CacheEvict(value = CACHE_NAME, allEntries = true)
     public SkillDto addSkill(SkillDto skillDto) {
         Profile profile = profileRepository.findFirstByOrderByIdAsc()
-                .orElseGet(this::createDefaultProfile);
+                .orElseThrow(() -> new EntityNotFoundException("Data profil belum tersedia di database PostgreSQL."));
 
         int percentVal = skillDto.getProficiency() != null ? skillDto.getProficiency()
-                : (skillDto.getPercent() != null ? skillDto.getPercent() : 85);
+                : (skillDto.getPercent() != null ? skillDto.getPercent() : 0);
 
         Skill skill = Skill.builder()
                 .profile(profile)
@@ -268,7 +261,7 @@ public class ProfileServiceImpl implements ProfileService {
                 .icon(skillDto.getIcon())
                 .proficiency(percentVal)
                 .color(skillDto.getColor())
-                .category(skillDto.getCategory() != null ? skillDto.getCategory() : "general")
+                .category(skillDto.getCategory())
                 .displayOrder(skillDto.getDisplayOrder() != null ? skillDto.getDisplayOrder() : 0)
                 .build();
 
@@ -310,7 +303,7 @@ public class ProfileServiceImpl implements ProfileService {
     @CacheEvict(value = CACHE_NAME, allEntries = true)
     public TestimonialDto addTestimonial(TestimonialDto testimonialDto) {
         Profile profile = profileRepository.findFirstByOrderByIdAsc()
-                .orElseGet(this::createDefaultProfile);
+                .orElseThrow(() -> new EntityNotFoundException("Data profil belum tersedia di database PostgreSQL."));
 
         Testimonial testimonial = Testimonial.builder()
                 .profile(profile)
@@ -347,101 +340,6 @@ public class ProfileServiceImpl implements ProfileService {
     @CacheEvict(value = CACHE_NAME, allEntries = true)
     public void deleteTestimonial(Long testimonialId) {
         testimonialRepository.deleteById(testimonialId);
-    }
-
-    private Profile createDefaultProfile() {
-        Profile defaultProfile = Profile.builder()
-                .name("Rakadnp")
-                .fullName("Raka Dwi P.")
-                .role("Lead Backend Architect")
-                .headline("Arsitektur Berdaya Tahan Tinggi dengan Caching Terpadu")
-                .bio("Halo! Saya Rakadnp, seorang Software Engineer & Researcher yang berfokus pada arsitektur sistem backend berdaya tahan tinggi menggunakan Java Spring Boot dan PostgreSQL, dipadukan dengan pengalaman frontend interaktif menggunakan React.")
-                .avatarUrl("/author.jpg")
-                .location("Jakarta, Indonesia")
-                .experience("5+ Tahun Pengalaman")
-                .specialization("☕ Backend & System Architect")
-                .status("Aktif Menulis & Riset")
-                .availability(null)
-                .githubUrl("https://github.com/rakandp")
-                .linkedinUrl("https://linkedin.com")
-                .twitterUrl("https://twitter.com")
-                .instagramUrl("https://instagram.com")
-                .email("rakandp.dev@gmail.com")
-                .cvUrl("#")
-                .phone("+62 812-3456-7890")
-                .internalNotes("Profil terverifikasi sistem blog.")
-                .build();
-
-        Profile saved = profileRepository.save(defaultProfile);
-
-        // Seed initial skills
-        List<Skill> initialSkills = List.of(
-                Skill.builder().profile(saved).name("HTML").icon("html").proficiency(95).color("#e34f26").category("frontend").displayOrder(1).build(),
-                Skill.builder().profile(saved).name("CSS").icon("css").proficiency(90).color("#1572b6").category("frontend").displayOrder(2).build(),
-                Skill.builder().profile(saved).name("JavaScript").icon("js").proficiency(90).color("#f7df1e").category("frontend").displayOrder(3).build(),
-                Skill.builder().profile(saved).name("React.js").icon("react").proficiency(85).color("#61dafb").category("frontend").displayOrder(4).build(),
-                Skill.builder().profile(saved).name("Next.js").icon("next").proficiency(80).color("#ffffff").category("frontend").displayOrder(5).build(),
-                Skill.builder().profile(saved).name("TypeScript").icon("ts").proficiency(85).color("#3178c6").category("frontend").displayOrder(6).build(),
-                Skill.builder().profile(saved).name("Node.js").icon("node").proficiency(80).color("#339933").category("backend").displayOrder(7).build(),
-                Skill.builder().profile(saved).name("Tailwind CSS").icon("tailwind").proficiency(90).color("#06b6d4").category("frontend").displayOrder(8).build(),
-                Skill.builder().profile(saved).name("Git").icon("git").proficiency(85).color("#f05032").category("devops").displayOrder(9).build(),
-                Skill.builder().profile(saved).name("Java 21 & Spring Boot 4").icon("java").proficiency(95).color("#e76f00").category("backend").displayOrder(10).build(),
-                Skill.builder().profile(saved).name("PostgreSQL").icon("postgres").proficiency(90).color("#336791").category("backend").displayOrder(11).build()
-        );
-        skillRepository.saveAll(initialSkills);
-
-        // Seed initial testimonial
-        Testimonial initialTestimonial = Testimonial.builder()
-                .profile(saved)
-                .quote("Alex is an exceptional developer who delivers high-quality work on time. His attention to detail and problem-solving skills are outstanding.")
-                .author("Sarah Johnson")
-                .role("CEO, TechStart")
-                .avatarUrl("https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80")
-                .displayOrder(1)
-                .build();
-        testimonialRepository.save(initialTestimonial);
-
-        // Seed initial researches jika belum ada
-        if (researchRepository.findByProfileIdOrderByDisplayOrderAscYearDescIdAsc(saved.getId()).isEmpty()) {
-            List<Research> initialResearches = List.of(
-                    Research.builder()
-                            .profile(saved)
-                            .year("2020")
-                            .journalName("ETD Repository — Universitas Gadjah Mada")
-                            .title("Pengembangan Aplikasi Pengenalan Suara Speech-to-Text Bahasa Indonesia pada Laptop dan Dekstop")
-                            .summary("Aplikasi automatic speech recognition (ASR) bernama ARISE dikembangkan untuk memudahkan penyandang disabilitas dan pengguna yang kesulitan menggunakan keyboard atau touchscreen agar dapat mengetik angka \"nol\" hingga \"sembilan\" melalui suara. Sistem ini menggunakan metode ekstraksi ciri MFCC dan algoritma klasifikasi SVM (dengan KNN sebagai pembanding) yang menghasilkan performa F1-score pada model SVM berkisar antara 69% hingga 98%.")
-                            .researchers("Raka Andinan Pratama, Dr. Ir. Risanuri Hidayat, M.Sc., IPM.")
-                            .doi("ETD-UGM-573142")
-                            .publicationUrl("http://etd.repository.ugm.ac.id/penelitian/unduh/573142")
-                            .displayOrder(1)
-                            .build(),
-                    Research.builder()
-                            .profile(saved)
-                            .year("2025")
-                            .journalName("ACM Computing Surveys (CSUR)")
-                            .title("Comprehensive Benchmark Analysis of Modern JVM Garbage Collectors for Latency-Critical Distributed Systems")
-                            .summary("Komparasi mendalam antara ZGC Generasional dan Shenandoah GC pada Java 21 LTS dalam menangani beban pemrosesan transaksi real-time dengan alokasi heap terdistribusi hingga 128 GB tanpa degradasi throughput pada SLA 99.99%.")
-                            .researchers("Raka Dwi P., Dr. Marcus Vance")
-                            .doi("10.1145/3618920.2025")
-                            .publicationUrl("https://dl.acm.org")
-                            .displayOrder(2)
-                            .build(),
-                    Research.builder()
-                            .profile(saved)
-                            .year("2024")
-                            .journalName("International Conference on Distributed Computing Systems (ICDCS)")
-                            .title("Adaptive Connection Pooling and Concurrency Control Optimization in Cloud-Native PostgreSQL Deployments")
-                            .summary("Eksplorasi optimasi connection pooling dinamis pada PostgreSQL menggunakan HikariCP dan PgBouncer untuk mengatasi bottleneck lock contention dan memaksimalkan efisiensi resource CPU pada kluster Kubernetes berskala besar.")
-                            .researchers("Raka Dwi P., Elena Rostova")
-                            .doi("10.1109/ICDCS.2024.1054231")
-                            .publicationUrl("https://ieeexplore.ieee.org")
-                            .displayOrder(3)
-                            .build()
-            );
-            researchRepository.saveAll(initialResearches);
-        }
-
-        return saved;
     }
 
     private ProfilePublicDto mapToDto(Profile profile, List<Skill> skills, List<Testimonial> testimonials, List<Research> researches) {

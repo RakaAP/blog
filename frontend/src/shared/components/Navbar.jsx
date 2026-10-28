@@ -8,6 +8,7 @@ export default function Navbar({
   onSectionNavigate,
   systemOnline,
   siteSettings,
+  isLoadingSettings,
   onOpenAdminLogin,
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,13 +42,25 @@ export default function Navbar({
   return (
     <header className="navbar-wrapper">
       <div className="navbar">
-        {/* Brand Logo (Dinamis dari PostgreSQL site_settings) */}
+        {/* Brand Logo (Murni dari PostgreSQL site_settings) */}
         <div className="nav-brand" onClick={() => handleSectionOrTab('hero', 'about')}>
-          <div className="brand-avatar">{siteSettings?.brand_avatar || 'R'}</div>
-          <div className="brand-text">
-            <h1>{siteSettings?.brand_name || 'Rakadnp'}</h1>
-            <p>{siteSettings?.brand_role || 'Software Engineer'}</p>
-          </div>
+          {isLoadingSettings ? (
+            <>
+              <span className="ui-skeleton" style={{ width: '36px', height: '36px', borderRadius: '10px' }} />
+              <div className="brand-text" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span className="ui-skeleton" style={{ width: '110px', height: '14px' }} />
+                <span className="ui-skeleton" style={{ width: '85px', height: '10px' }} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="brand-avatar">{siteSettings?.brand_avatar || ''}</div>
+              <div className="brand-text">
+                <h1>{siteSettings?.brand_name || ''}</h1>
+                <p>{siteSettings?.brand_role || ''}</p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Desktop Nav Links (Synchronized with Full-Page Scroll Sections) */}

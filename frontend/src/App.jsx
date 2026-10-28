@@ -18,7 +18,8 @@ function MainApp() {
   const [systemOnline, setSystemOnline] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  const [siteSettings, setSiteSettings] = useState({});
+  const [siteSettings, setSiteSettings] = useState(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
 
   // 1. Ref and IntersectionObserver / Snap-Event Active Section Tracker
   const scrollContainerRef = useRef(null);
@@ -41,13 +42,15 @@ function MainApp() {
     setTimeout(() => setToast(null), 3800);
   };
 
-  const handleCopyEmail = (email = 'rakandp.dev@gmail.com') => {
+  const handleCopyEmail = (email) => {
+    if (!email) return;
     navigator.clipboard.writeText(email);
     showToast(`Alamat email ${email} berhasil disalin ke clipboard!`);
   };
 
   // 2. Fetch Dynamic Site Configurations from PostgreSQL: GET /api/settings
   const fetchSiteSettings = async () => {
+    setIsLoadingSettings(true);
     try {
       const res = await fetch('/api/settings');
       if (res.ok) {
@@ -59,6 +62,8 @@ function MainApp() {
       }
     } catch (e) {
       console.warn('Gagal memuat konfigurasi situs dari PostgreSQL:', e);
+    } finally {
+      setIsLoadingSettings(false);
     }
   };
 
@@ -93,6 +98,7 @@ function MainApp() {
         onSectionNavigate={handleSectionNavigate}
         systemOnline={systemOnline}
         siteSettings={siteSettings}
+        isLoadingSettings={isLoadingSettings}
         onOpenAdminLogin={() => setIsLoginModalOpen(true)}
       />
 
@@ -115,6 +121,7 @@ function MainApp() {
             onCopyEmail={handleCopyEmail} 
             onToast={showToast}
             siteSettings={siteSettings}
+            isLoadingSettings={isLoadingSettings}
             onScrollToSection={handleSectionNavigate}
           />
         )}
@@ -130,11 +137,11 @@ function MainApp() {
               <AdminDashboard 
                 onToast={showToast} 
                 onOpenLogin={() => setIsLoginModalOpen(true)} 
-                siteSettings={siteSettings}
+                siteSettings={siteSettings || {}}
                 onSettingsUpdated={fetchSiteSettings}
               />
             )}
-            <Footer onNavigate={setActiveTab} siteSettings={siteSettings} />
+            <Footer onNavigate={setActiveTab} siteSettings={siteSettings} isLoadingSettings={isLoadingSettings} />
           </div>
         )}
       </main>

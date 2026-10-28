@@ -93,10 +93,7 @@ public class ProfileController {
     public ResponseEntity<byte[]> getAvatarImage() {
         com.personal.blog.dto.AvatarImageDto imageDto = profileService.getAvatarImage();
         if (imageDto == null || imageDto.getData() == null || imageDto.getData().length == 0) {
-            // Fallback redirect ke default /author.jpg jika belum ada avatar biner tersimpan di DB
-            return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(java.net.URI.create("/author.jpg"))
-                    .build();
+            return ResponseEntity.notFound().build();
         }
 
         MediaType mediaType;
