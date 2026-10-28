@@ -11,11 +11,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
+@Transactional
 class ProfileControllerTest {
 
     @Autowired
@@ -133,4 +136,81 @@ class ProfileControllerTest {
                 .andExpect(jsonPath("$.status").value("SUCCESS"))
                 .andExpect(jsonPath("$.avatarUrl").exists());
     }
+
+    @Test
+    @DisplayName("GET /api/profile harus mengembalikan nested skills dan testimonials")
+    void testGetProfileIncludesNestedSkillsAndTestimonials() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context)
+                .apply(springSecurity())
+                .build();
+
+        mockMvc.perform(get("/api/profile"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.skills").isArray())
+                .andExpect(jsonPath("$.testimonials").isArray());
+    }
+
+    @Test
+    @DisplayName("POST /api/profile/skills tanpa token harus ditolak 401 Unauthorized")
+    void testAddSkillWithoutTokenShouldFail() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context)
+                .apply(springSecurity())
+                .build();
+
+        mockMvc.perform(post("/api/profile/skills")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Docker\",\"proficiency\":85,\"icon\":\"docker\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST /api/profile/skills dengan token ADMIN harus berhasil 201 Created")
+    void testAddSkillWithAdminTokenShouldSucceed() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context)
+                .apply(springSecurity())
+                .build();
+
+        String adminToken = jwtUtil.generateToken("admin", "ROLE_ADMIN");
+
+        mockMvc.perform(post("/api/profile/skills")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Kubernetes\",\"proficiency\":90,\"icon\":\"k8s\",\"category\":\"devops\",\"displayOrder\":12}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Kubernetes"))
+                .andExpect(jsonPath("$.proficiency").value(90));
+    }
+
+    @Test
+    @DisplayName("POST /api/profile/testimonials dengan token ADMIN harus berhasil 201 Created")
+    void testAddTestimonialWithAdminTokenShouldSucceed() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context)
+                .apply(springSecurity())
+                .build();
+
+        String adminToken = jwtUtil.generateToken("admin", "ROLE_ADMIN");
+
+        mockMvc.perform(post("/api/profile/testimonials")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quote\":\"Kerja sama yang luar biasa!\",\"author\":\"Jane Doe\",\"role\":\"VP of Eng\",\"avatarUrl\":\"/avatar.jpg\",\"displayOrder\":2}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.author").value("Jane Doe"))
+                .andExpect(jsonPath("$.quote").value("Kerja sama yang luar biasa!"));
+    }
+
+    @Test
+    @DisplayName("GET /api/profile/avatar/image harus dapat diakses secara publik (200 OK atau 302 Found)")
+    void testGetAvatarImageEndpoint() throws Exception {
+        MockMvc mockMvc = MockMvcBuilders.webAppContextSetup(context)
+                .apply(springSecurity())
+                .build();
+
+        mockMvc.perform(get("/api/profile/avatar/image"))
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    org.junit.jupiter.api.Assertions.assertTrue(status == 200 || status == 302);
+                });
+    }
 }
+

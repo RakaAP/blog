@@ -8,9 +8,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.CacheManager;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@Transactional
 class ProfileServiceCachingTest {
 
     @Autowired
@@ -41,20 +44,21 @@ class ProfileServiceCachingTest {
         // 4. Update profil -> Memicu @CacheEvict
         ProfileUpdateRequest updateReq = ProfileUpdateRequest.builder()
                 .name("Rakadnp")
-                .fullName("Raka Dwi P.")
-                .role("Lead Backend Architect")
-                .headline("Arsitektur Berdaya Tahan Tinggi dengan Caching Terpadu")
+                .fullName("Raka Andinan Pratama")
+                .role("Software Engineer")
+                .headline("Software Engineer")
                 .bio(firstCall.getBio())
                 .build();
 
         profileService.updateProfile(updateReq);
 
         // 5. Verifikasi bahwa cache telah dibersihkan oleh @CacheEvict
-        assertNull(cache.get("public"), "Setelah updateProfile, cache 'public' harus telah dibersihkan oleh @CacheEvict");
+        assertNull(cache.get("public"),
+                "Setelah updateProfile, cache 'public' harus telah dibersihkan oleh @CacheEvict");
 
         // 6. Pemanggilan berikutnya akan mengisi cache kembali dengan data terbaru
         ProfilePublicDto thirdCall = profileService.getPublicProfile();
-        assertEquals("Arsitektur Berdaya Tahan Tinggi dengan Caching Terpadu", thirdCall.getHeadline());
+        assertEquals("Software Engineer", thirdCall.getHeadline());
         assertNotNull(cache.get("public"), "Cache kembali terisi dengan data terbaru");
     }
 }

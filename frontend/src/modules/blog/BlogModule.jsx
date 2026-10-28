@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../shared/context/AuthContext';
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 3;
 
 export default function BlogModule({ onToast }) {
   const { adminUser, isAuthenticated } = useAuth();
@@ -220,217 +220,212 @@ export default function BlogModule({ onToast }) {
   };
 
   return (
-    <section id="module-blog">
-      <div className="section-header">
-        <span className="section-tag">Artikel &amp; Pemikiran</span>
-        <h2 className="section-title">Personal Blog</h2>
-        <p className="section-desc">
-          Artikel teknis dan catatan pengalaman yang terhubung langsung ke database PostgreSQL{' '}
-          <code>personalBlog</code>.{' '}
-          {totalElements > 0 && <span style={{ color: 'var(--text-muted)' }}>({totalElements} artikel)</span>}
-        </p>
-      </div>
+    <section
+      id="blog"
+      className="fullpage-snap-section section-blog snap-start snap-always w-full min-h-dvh flex flex-col justify-center items-center"
+      aria-label="Blog Section"
+    >
+      <div className="section-inner-container">
+        <div className="blog-section-content">
+          {/* Section Centered Header */}
+          <div className="section-centered-header" style={{ marginBottom: '1.25rem' }}>
+            <span className="section-pill-tag">ARTIKEL &amp; PEMIKIRAN</span>
+            <h3 className="section-title-large">Personal Blog</h3>
+            <p className="section-subtitle-text" style={{ maxWidth: '640px', margin: '0.4rem auto 0 auto', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              Artikel teknis dan catatan arsitektur sistem terhubung langsung ke database PostgreSQL personalBlog.{' '}
+              {totalElements > 0 && <span style={{ color: '#a5b4fc', fontWeight: 600 }}>({totalElements} artikel)</span>}
+            </p>
+          </div>
 
-      {/* Toolbar */}
-      <div className="toolbar">
-        <div className="search-box">
-          <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text"
-            className="search-input"
-            placeholder="Cari artikel berdasarkan judul atau isi konten..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-        </div>
+          {/* Unified Toolbar */}
+          <div className="blog-toolbar-row">
+            <div className="blog-search-wrap">
+              <svg className="blog-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <input
+                type="text"
+                className="blog-search-input"
+                placeholder="Cari artikel berdasarkan judul atau konten..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
 
-        {isAuthenticated && (
-          <button className="btn-primary" onClick={handleOpenCreate}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span>Tulis Artikel Baru</span>
-          </button>
-        )}
-      </div>
+            {/* Category Filter Pills */}
+            <div className="blog-category-chips">
+              {['All', ...new Set(posts.map(p => p.category || 'Technology'))].map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`blog-category-chip ${selectedCategory === cat ? 'active' : ''}`}
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
 
-      {/* Category Pills */}
-      {posts.length > 0 && (
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
-          {['All', ...new Set(posts.map(p => p.category || 'Technology'))].map(cat => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              style={{
-                background: selectedCategory === cat ? 'var(--primary)' : 'rgba(255, 255, 255, 0.05)',
-                color: selectedCategory === cat ? '#fff' : 'var(--text-secondary)',
-                border: '1px solid ' + (selectedCategory === cat ? 'var(--primary)' : 'var(--border-subtle)'),
-                padding: '0.35rem 0.85rem',
-                borderRadius: '9999px',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      )}
+            {isAuthenticated && (
+              <button className="btn-primary-purple" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }} onClick={handleOpenCreate}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                <span>Tulis Artikel</span>
+              </button>
+            )}
+          </div>
 
-      {/* Grid Posts */}
-      {loading ? (
-        <div className="empty-state">
-          <p className="empty-subtitle">Memuat data artikel dari PostgreSQL...</p>
-        </div>
-      ) : posts.length === 0 ? (
-        <div className="empty-state">
-          <h3 className="empty-title">Belum ada artikel ditemukan</h3>
-          <p className="empty-subtitle">
-            {searchQuery ? 'Tidak ada artikel yang cocok dengan pencarian.' : 'Mulai publikasikan tulisan pertama Anda!'}
-          </p>
-          {isAuthenticated && (
-            <button className="btn-primary" onClick={handleOpenCreate} style={{ margin: '0 auto' }}>
-              Tulis Artikel Pertama
-            </button>
+          {/* Grid Posts */}
+          {loading ? (
+            <div className="empty-state" style={{ padding: '2rem' }}>
+              <p className="empty-subtitle">Memuat data artikel dari PostgreSQL...</p>
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="empty-state" style={{ padding: '2rem' }}>
+              <h3 className="empty-title">Belum ada artikel ditemukan</h3>
+              <p className="empty-subtitle">
+                {searchQuery ? 'Tidak ada artikel yang cocok dengan pencarian.' : 'Mulai publikasikan tulisan pertama Anda!'}
+              </p>
+              {isAuthenticated && (
+                <button className="btn-primary-purple" onClick={handleOpenCreate} style={{ margin: '0 auto' }}>
+                  Tulis Artikel Pertama
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="posts-grid">
+              {posts.map(post => (
+                <article
+                  key={post.id}
+                  className="post-card"
+                  onClick={() => handleOpenRead(post)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="post-header">
+                    <span className="post-category">{post.category || 'General'}</span>
+                    <div className="post-meta-right">
+                      <span className="post-read-time">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" />
+                          <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        {post.readTime || getReadTime(post.content)}
+                      </span>
+                      <span>
+                        {post.createdAt ? new Date(post.createdAt).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        }) : 'Baru saja'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <h3 className="post-title">{post.title}</h3>
+                  <p className="post-content">{post.summary || post.content?.substring(0, 140) + '...'}</p>
+
+                  <div className="post-footer">
+                    <span className="post-author">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="8" r="5" />
+                        <path d="M20 21a8 8 0 0 0-16 0" />
+                      </svg>
+                      {post.author || 'Admin'}
+                    </span>
+
+                    <div className="post-actions" onClick={e => e.stopPropagation()}>
+                      {isAuthenticated && (
+                        <>
+                          <button className="btn-icon" title="Edit Artikel" onClick={(e) => handleOpenEdit(post, e)}>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                            </svg>
+                          </button>
+
+                          <button className="btn-icon delete" title="Hapus Artikel" onClick={(e) => handleDelete(post.id, post.title, e)}>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 6h18" />
+                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                      <span className="post-read-cta" onClick={() => handleOpenRead(post)}>
+                        Baca Selengkapnya →
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.4rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 0}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px',
+                  color: 'var(--text-secondary)',
+                  padding: '0.35rem 0.75rem',
+                  fontSize: '0.8rem',
+                  cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                  opacity: currentPage === 0 ? 0.4 : 1
+                }}
+              >
+                ← Prev
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => handlePageChange(i)}
+                  style={{
+                    background: i === currentPage ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                    border: '1px solid ' + (i === currentPage ? 'var(--primary)' : 'var(--border-subtle)'),
+                    borderRadius: '8px',
+                    color: '#fff',
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    fontWeight: i === currentPage ? 700 : 400,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages - 1}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px',
+                  color: 'var(--text-secondary)',
+                  padding: '0.35rem 0.75rem',
+                  fontSize: '0.8rem',
+                  cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                  opacity: currentPage >= totalPages - 1 ? 0.4 : 1
+                }}
+              >
+                Next →
+              </button>
+            </div>
           )}
         </div>
-      ) : (
-        <div className="posts-grid">
-          {posts.map(post => (
-            <article
-              key={post.id}
-              className="post-card"
-              onClick={() => handleOpenRead(post)}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className="post-header">
-                <span className="post-category">{post.category || 'General'}</span>
-                <div className="post-meta-right">
-                  <span className="post-read-time">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                    {post.readTime || getReadTime(post.content)}
-                  </span>
-                  <span>
-                    {post.createdAt ? new Date(post.createdAt).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric'
-                    }) : 'Baru saja'}
-                  </span>
-                </div>
-              </div>
-
-              <h3 className="post-title">{post.title}</h3>
-              <p className="post-content">{post.summary || post.content?.substring(0, 160) + '...'}</p>
-
-              <div className="post-footer">
-                <span className="post-author">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="8" r="5" />
-                    <path d="M20 21a8 8 0 0 0-16 0" />
-                  </svg>
-                  {post.author || 'Admin'}
-                </span>
-
-                <div className="post-actions" onClick={e => e.stopPropagation()}>
-                  {isAuthenticated && (
-                    <>
-                      <button className="btn-icon" title="Edit Artikel" onClick={(e) => handleOpenEdit(post, e)}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                        </svg>
-                      </button>
-
-                      <button className="btn-icon delete" title="Hapus Artikel" onClick={(e) => handleDelete(post.id, post.title, e)}>
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18" />
-                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                        </svg>
-                      </button>
-                    </>
-                  )}
-                  <button
-                    className="btn-icon"
-                    title="Baca Artikel"
-                    onClick={(e) => { e.stopPropagation(); handleOpenRead(post); }}
-                    style={{ color: 'var(--primary)' }}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '2rem', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 0}
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '8px',
-              color: 'var(--text-secondary)',
-              padding: '0.4rem 0.8rem',
-              cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-              opacity: currentPage === 0 ? 0.4 : 1
-            }}
-          >
-            ← Prev
-          </button>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => handlePageChange(i)}
-              style={{
-                background: i === currentPage ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                border: '1px solid ' + (i === currentPage ? 'var(--primary)' : 'var(--border-subtle)'),
-                borderRadius: '8px',
-                color: '#fff',
-                padding: '0.4rem 0.8rem',
-                cursor: 'pointer',
-                fontWeight: i === currentPage ? 700 : 400,
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {i + 1}
-            </button>
-          ))}
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages - 1}
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '8px',
-              color: 'var(--text-secondary)',
-              padding: '0.4rem 0.8rem',
-              cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-              opacity: currentPage >= totalPages - 1 ? 0.4 : 1
-            }}
-          >
-            Next →
-          </button>
-        </div>
-      )}
+      </div>
 
       {/* Read Article Modal */}
       {readPost && (
