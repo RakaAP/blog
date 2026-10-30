@@ -956,16 +956,9 @@ export default function AboutModule({ onNavigate, onCopyEmail, onToast, siteSett
             {isLoadingProfile ? (
               <span className="ui-skeleton" style={{ width: '260px', height: '14px' }} />
             ) : (
-              <>
-                <p className="copyright-text">
-                  © {new Date().getFullYear()} {profile?.fullName || profile?.name || ''}. All rights reserved.
-                </p>
-                {(profile?.name || profile?.fullName) && (
-                  <p className="made-with-love">
-                    Made with <span className="heart-icon">❤️</span> by {profile?.name || profile?.fullName}
-                  </p>
-                )}
-              </>
+              <p className="copyright-text">
+                © {new Date().getFullYear()} {profile?.fullName || profile?.name || ''}. All rights reserved.
+              </p>
             )}
           </div>
         </div>
